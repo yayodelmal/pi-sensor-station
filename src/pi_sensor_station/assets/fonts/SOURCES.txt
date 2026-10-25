@@ -1,0 +1,6 @@
+Fonts from https://github.com/google/fonts (main), downloaded 2026-10-25.
+Barlow: ofl/barlow/Barlow-{Regular,Medium,SemiBold,Bold}.ttf
+Barlow Condensed: ofl/barlowcondensed/BarlowCondensed-{Medium,SemiBold}.ttf
+Fraunces: ofl/fraunces/Fraunces[SOFT,WONK,opsz,wght].ttf
+Fraunces is loaded with weight 600 and optical size 21.
+Redistribution licenses are included in OFL-*.txt alongside these font files.

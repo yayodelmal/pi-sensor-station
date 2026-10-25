@@ -1,0 +1,23 @@
+[Unit]
+Description=Raspberry Pi sensor station
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=zero
+SupplementaryGroups=i2c video
+WorkingDirectory=/home/zero/pi-sensor-station
+EnvironmentFile=/home/zero/pi-sensor-station/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/zero/pi-sensor-station/.venv/bin/python -m pi_sensor_station
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

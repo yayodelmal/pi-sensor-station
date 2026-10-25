@@ -1,0 +1,6 @@
+{
+  "temperature_source": "ds18b20",
+  "temperature_fallback": true,
+  "temperature": {"minimum": 22, "maximum": 24, "scale_min": 16, "scale_max": 32},
+  "humidity": {"minimum": 85, "maximum": 92, "scale_min": 60, "scale_max": 100}
+}
