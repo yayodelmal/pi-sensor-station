@@ -34,14 +34,22 @@ class Display:
         self.last_image = None
 
     def draw(self, readings, errors, network, simulated=False, page=0, history=None):
+        from PIL import ImageChops
+
         image = self.renderer.render(readings, errors, network, simulated=simulated, page=page, history=history)
         if image is self.last_image:
             return
-        data = rgb565(image)
-        if data != self.last:
+        dirty = image.getbbox() if self.last_image is None else ImageChops.difference(image, self.last_image).getbbox()
+        if dirty:
+            x0, y0, x1, y1 = dirty
+            data = rgb565(image.crop(dirty))
             with self.device.open("r+b", buffering=0) as framebuffer:
-                written = framebuffer.write(data)
-                if written != len(data):
-                    raise OSError("Incomplete framebuffer write")
-            self.last = data
+                row_bytes = (x1 - x0) * 2
+                for row in range(y1 - y0):
+                    framebuffer.seek((y0 + row) * 960 + x0 * 2)
+                    start = row * row_bytes
+                    written = framebuffer.write(data[start:start + row_bytes])
+                    if written != row_bytes:
+                        raise OSError("Incomplete framebuffer region write")
+        self.last = dirty
         self.last_image = image

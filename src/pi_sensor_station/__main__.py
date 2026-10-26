@@ -75,6 +75,7 @@ def main():
     next_read = 0
     pending = None
     notified = False
+    disconnected_streak = {"sht31": 0, "ds18b20": 0}
     readings, errors = {}, {}
     with ThreadPoolExecutor(max_workers=1) as executor:
         while not stop.is_set():
@@ -92,8 +93,11 @@ def main():
                     for name, sensor in sensors.items():
                         try:
                             readings[name] = sensor.read()
+                            disconnected_streak[name] = 0
                         except Exception as error:
-                            errors[name] = error_status(error)
+                            status = error_status(error)
+                            disconnected_streak[name] = disconnected_streak[name] + 1 if status == "disc" else 0
+                            errors[name] = ("disc" if disconnected_streak[name] >= 3 else "nodata") if status == "disc" else status
                             LOG.warning("%s read failed: %s", name, error)
                 LOG.info("%sreadings: %s", "SIMULATED " if args.simulate else "", readings)
                 history.update(resolve_history_values(readings, errors, config))

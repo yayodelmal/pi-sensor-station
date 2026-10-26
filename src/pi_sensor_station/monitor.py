@@ -2,10 +2,13 @@
 
 import errno
 import json
+import logging
 import math
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+LOG = logging.getLogger("pi-sensor-station")
 
 
 @dataclass(frozen=True)
@@ -50,8 +53,9 @@ class MonitorConfig:
                 if key in data:
                     data[key] = Range(**data[key])
             return cls(**data)
-        except (TypeError, json.JSONDecodeError) as error:
-            raise ValueError(f"Invalid monitor configuration: {error}") from error
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+            LOG.warning("Invalid monitor configuration; using defaults: %s", error)
+            return cls()
 
 
 def error_status(error):
@@ -60,7 +64,7 @@ def error_status(error):
 
     if isinstance(error, SensorDisconnected):
         return "disc"
-    if isinstance(error, OSError) and error.errno in (errno.ENXIO, errno.ENODEV, errno.EREMOTEIO):
+    if isinstance(error, OSError) and error.errno in (errno.ENOENT, errno.ENXIO, errno.ENODEV, errno.EREMOTEIO):
         return "disc"
     return "nodata"
 

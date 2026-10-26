@@ -49,7 +49,7 @@ def decode_ds18b20(text):
     if len(lines) != 2 or not lines[0].strip().endswith("YES") or "t=" not in lines[1]:
         raise ValueError("DS18B20: missing temperature or failed CRC")
     temperature = int(lines[1].split("t=", 1)[1]) / 1000
-    if not -55 <= temperature <= 125:
+    if not -55 <= temperature <= 125 or temperature == 85.0:
         raise ValueError("DS18B20: temperature outside sensor range")
     return {"temperature": temperature}
 
