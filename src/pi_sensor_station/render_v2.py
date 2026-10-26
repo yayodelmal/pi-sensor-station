@@ -62,11 +62,8 @@ class Canvas:
 @lru_cache(maxsize=128)
 def _font(family, size):
     path=Path(__file__).parent/"assets"/"fonts"/(family+".ttf")
-    f=ImageFont.truetype(str(path),size)
-    if family=="Fraunces-600":
-        axes=f.get_variation_axes()
-        f.set_variation_by_axes([600 if a["name"]==b"Weight" else min(a["maximum"],max(a["minimum"],21)) if a["name"]==b"Optical Size" else a["default"] for a in axes])
-    return f
+    # The supplied v2 fonts are static weights (including Fraunces 600).
+    return ImageFont.truetype(str(path),size)
 
 
 class Renderer:
