@@ -67,10 +67,16 @@ def main():
                             tuple(map(int, os.getenv("TOUCH_RAW_X", "0,4095").split(","))),
                             tuple(map(int, os.getenv("TOUCH_RAW_Y", "0,4095").split(","))),
                             int(os.getenv("TOUCH_ROTATION", "0")))
+        LOG.info("Touch navigation enabled: device=%s raw_x=%s raw_y=%s rotation=%d",
+                 touch.device, touch.raw_x, touch.raw_y, touch.rotation)
     except (OSError, ValueError) as error:
         LOG.info("Touch input unavailable: %s", error)
         touch = None
     page = 1 if args.page == "summary" else 0
+    auto_return = float(os.getenv("AUTO_RETURN_HOME_S", "0"))
+    if not math.isfinite(auto_return) or auto_return < 0:
+        parser.error("AUTO_RETURN_HOME_S must be a finite non-negative number")
+    last_interaction = time.monotonic()
     if args.simulate:
         LOG.warning("SIMULATION: readings are examples%s", "; HTTP sending is enabled" if api else "")
     next_send = 0
@@ -110,7 +116,19 @@ def main():
             if display:
                 try:
                     if touch:
-                        for direction in touch.poll(): page = max(0, min(1, page + direction))
+                        previous_gesture = touch.swipe.gesture_count
+                        actions = touch.poll()
+                        if touch.swipe.gesture_count != previous_gesture:
+                            x, y, _, _ = touch.swipe.last_gesture
+                            LOG.info("Touch contact x=%d y=%d", x, y)
+                        for direction in actions:
+                            page = 1 - page
+                            last_interaction = time.monotonic()
+                            LOG.info("Touch changed page=%s",
+                                     "Resumen" if page else "Inicio")
+                    if page and auto_return and time.monotonic() - last_interaction >= auto_return:
+                        page = 0
+                        LOG.info("Auto-returned to Inicio")
                     display.draw(readings, errors, network, simulated=args.simulate, page=page,
                                  history=history.samples)
                 except (OSError, ValueError) as error:
@@ -132,7 +150,8 @@ def main():
                 notify_ready()
                 notified = True
             # Poll completion and update the clock without reading sensors at 1 Hz.
-            delay = min(1, max(0, next_read - time.monotonic()))
+            touch_poll = 0.1 if touch else 1.0
+            delay = min(touch_poll, max(0, next_read - time.monotonic()))
             history.flush_if_due(float(os.getenv("HISTORY_FLUSH_S", "60")))
             stop.wait(delay)
     history.flush_if_due(force=True)
@@ -142,15 +161,11 @@ def main():
 
 
 def resolve_history_values(readings, errors, config):
-    """Return valid effective temperature and humidity for the current interval."""
+    """Return the three independent measurements; never substitute sensors."""
     from .monitor import valid_value
-    source = config.temperature_source
-    other = "sht31" if source == "ds18b20" else "ds18b20"
-    temp = valid_value(readings, errors, source, "temperature")
-    if temp is None and config.temperature_fallback:
-        temp = valid_value(readings, errors, other, "temperature")
-    humidity = valid_value(readings, errors, "sht31", "humidity")
-    return {"temperature": temp, "humidity": humidity}
+    return {"temperature": valid_value(readings, errors, "sht31", "temperature"),
+            "humidity": valid_value(readings, errors, "sht31", "humidity"),
+            "substrate": valid_value(readings, errors, "ds18b20", "temperature")}
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 from .colores import BACKGROUND, TEXT
 from .monitor import MonitorConfig, NetworkStatus
-from .rendering import Renderer
+from .render_v2 import Renderer
 
 
 def scenarios():
@@ -44,34 +44,37 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     examples = scenarios()
     if args.render_golden:
+        good = examples["optimal"]
         golden = [
-            ("00_optimo", examples["optimal"]),
-            ("01_temp_alta", examples["temperature-high"]),
-            ("02_temp_baja", examples["temperature-low"]),
-            ("03_hum_alta", examples["humidity-high"]),
+            ("00_optimo", good), ("01_temp_alta", examples["temperature-high"]),
+            ("02_temp_baja", examples["temperature-low"]), ("03_hum_alta", examples["humidity-high"]),
             ("04_hum_baja", examples["humidity-low"]),
-            ("05_ds18b20_desc_respaldo", examples["temperature-fallback"]),
-            ("06_sht31_desc", examples["sht31-disconnected"]),
-            ("07_todos_desc", examples["all-disconnected"]),
-            ("08_sht31_sin_lectura", examples["sht31-no-data"]),
-            ("09_ambos_sin_lectura", examples["all-no-data"]),
-            ("10_api_caida", examples["api-failure"]),
-            ("11_sht31_desc_api_caida", examples["sensor-and-api-failure"]),
-            ("12_alertas_temp_alta_hum_baja", ({"ds18b20": {"temperature": 25.4}, "sht31": {"temperature": 25.6, "humidity": 78}}, {}, NetworkStatus("ok"))),
+            ("05_sustrato_alto", ({"ds18b20":{"temperature":26.6},"sht31":{"temperature":23.2,"humidity":88}}, {}, NetworkStatus("ok"))),
+            ("06_sustrato_bajo", ({"ds18b20":{"temperature":19.4},"sht31":{"temperature":23.2,"humidity":88}}, {}, NetworkStatus("ok"))),
+            ("07_ds18b20_desc", ({"sht31":{"temperature":23.2,"humidity":88}}, {"ds18b20":"disc"}, NetworkStatus("ok"))),
+            ("08_sht31_desc", ({"ds18b20":{"temperature":23.5}}, {"sht31":"disc"}, NetworkStatus("ok"))),
+            ("09_ambos_desc", ({}, {"sht31":"disc","ds18b20":"disc"}, NetworkStatus("ok"))),
+            ("10_sht31_sin_lectura", ({"ds18b20":{"temperature":23.5}}, {"sht31":"nodata"}, NetworkStatus("ok"))),
+            ("11_ds18b20_sin_lectura", ({"sht31":{"temperature":23.2,"humidity":88}}, {"ds18b20":"nodata"}, NetworkStatus("ok"))),
+            ("12_api_caida", (good[0], good[1], NetworkStatus("fail", 0))),
+            ("13_sht31_desc_api_caida", ({"ds18b20":{"temperature":23.5}}, {"sht31":"disc"}, NetworkStatus("fail", 0))),
+            ("14_alertas_multiples", ({"ds18b20":{"temperature":26.6},"sht31":{"temperature":25.4,"humidity":78}}, {}, NetworkStatus("ok"))),
         ]
         args.render_golden.mkdir(parents=True, exist_ok=True)
         for name, (readings, errors, network) in golden:
             history = {
                 "temperature": [23.1 + .8 * math.sin(i / 11) for i in range(95)] + [
-                    readings.get("ds18b20", readings.get("sht31", {})).get("temperature")],
+                    readings.get("sht31", {}).get("temperature")],
                 "humidity": [88 + 5 * math.sin(i / 13) for i in range(95)] + [
                     readings.get("sht31", {}).get("humidity")],
+                "substrate": [23 + 1.1 * math.sin(i / 12) for i in range(95)] + [
+                    readings.get("ds18b20", {}).get("temperature")],
             }
             for page, suffix in ((0, "inicio"), (1, "resumen")):
                 image = renderer.render(readings, errors, network, clock="17:28", now=180,
                                         page=page, history=history)
                 image.save(args.render_golden / f"{name}__{suffix}.png")
-        print(f"Rendered 26 scenario images to {args.render_golden}")
+        print(f"Rendered {len(golden) * 2} scenario images to {args.render_golden}")
         return
     sheet = Image.new("RGB", (480 * 2, 348 * ((len(examples) + 1) // 2)), BACKGROUND)
     draw = ImageDraw.Draw(sheet)

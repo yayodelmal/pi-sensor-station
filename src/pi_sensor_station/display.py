@@ -19,7 +19,7 @@ def rgb565(image):
 
 class Display:
     def __init__(self, device, config=None):
-        from .rendering import Renderer
+        from .render_v2 import Renderer
 
         self.device = Path(device)
         info = Path("/sys/class/graphics") / self.device.name

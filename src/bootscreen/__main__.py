@@ -189,7 +189,7 @@ def main():
                         snapshot = probe_future.result()
                     except Exception:
                         LOG.exception("readiness probe failed")
-                        snapshot = Snapshot()
+                        snapshot = Snapshot(network_checked=False)
                     probe_future = None
                     after = uptime()
                     previous_index, previous_retry = controller.index, controller.retry_until

@@ -4,6 +4,7 @@ import errno
 import json
 import logging
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,8 +31,9 @@ class Range:
 class MonitorConfig:
     temperature: Range = field(default_factory=lambda: Range(22, 24, 16, 32))
     humidity: Range = field(default_factory=lambda: Range(85, 92, 60, 100))
-    temperature_source: str = "ds18b20"
-    temperature_fallback: bool = True
+    substrate: Range = field(default_factory=lambda: Range(21, 25, 14, 34))
+    temperature_source: str = "sht31"
+    temperature_fallback: bool = False
 
     def __post_init__(self):
         if self.temperature_source not in ("ds18b20", "sht31"):
@@ -49,7 +51,29 @@ class MonitorConfig:
             data = json.loads(Path(filename).read_text())
             if not isinstance(data, dict):
                 raise ValueError("Expected a JSON object")
-            for key in ("temperature", "humidity"):
+            # Accept the v2 handoff schema (temp/hum/sub) and the older schema.
+            if any(key in data for key in ("temp", "hum", "sub")):
+                converted = {}
+                for source, target in (("temp", "temperature"), ("hum", "humidity"), ("sub", "substrate")):
+                    item = data.get(source)
+                    if item:
+                        converted[target] = Range(item.get("min"), item.get("max"), item.get("scale_min"), item.get("scale_max"))
+                ui = data.get("ui", {})
+                if ui.get("history_path"):
+                    os.environ.setdefault("HISTORY_PATH", ui["history_path"])
+                if ui.get("touch_device"):
+                    os.environ.setdefault("TOUCH_DEVICE", ui["touch_device"])
+                if ui.get("framebuffer"):
+                    os.environ.setdefault("FRAMEBUFFER", ui["framebuffer"])
+                if ui.get("history_flush_s"):
+                    os.environ.setdefault("HISTORY_FLUSH_S", str(ui["history_flush_s"]))
+                if ui.get("auto_return_home_s"):
+                    os.environ.setdefault("AUTO_RETURN_HOME_S", str(ui["auto_return_home_s"]))
+                for key in ("temperature", "humidity", "substrate"):
+                    if key not in converted:
+                        converted[key] = getattr(cls(), key)
+                return cls(**converted)
+            for key in ("temperature", "humidity", "substrate"):
                 if key in data:
                     data[key] = Range(**data[key])
             return cls(**data)
@@ -104,21 +128,7 @@ def measured_panel(value, limits, tag, temperature, fallback=False):
 
 
 def resolve_panels(readings, errors, config):
-    source = config.temperature_source
-    other = "sht31" if source == "ds18b20" else "ds18b20"
-    candidates = (source, other) if config.temperature_fallback else (source,)
-    temperature = None
-    for sensor in candidates:
-        value = valid_value(readings, errors, sensor, "temperature")
-        if value is not None:
-            fallback = sensor != source
-            temperature = measured_panel(value, config.temperature, sensor.upper() + (" · respaldo" if fallback else ""), True, fallback)
-            break
-    if temperature is None:
-        disconnected = all(errors.get(sensor) == "disc" for sensor in candidates)
-        temperature = Panel("disc" if disconnected else "nodata", None,
-                            " · ".join(sensor.upper() for sensor in candidates),
-                            "Sin sensores conectados" if disconnected else "Sin lectura válida")
+    temperature = _sensor_panel(readings, errors, "sht31", "temperature", config.temperature, "SHT31", True)
     humidity = valid_value(readings, errors, "sht31", "humidity")
     if humidity is not None:
         humidity = measured_panel(humidity, config.humidity, "SHT31", False)
@@ -127,6 +137,21 @@ def resolve_panels(readings, errors, config):
         humidity = Panel("disc" if disconnected else "nodata", None, "SHT31",
                          "SHT31 desconectado" if disconnected else "Sin lectura válida")
     return temperature, humidity
+
+
+def resolve_all_panels(readings, errors, config):
+    temperature, humidity = resolve_panels(readings, errors, config)
+    substrate = _sensor_panel(readings, errors, "ds18b20", "temperature", config.substrate, "DS18B20", True)
+    return temperature, humidity, substrate
+
+
+def _sensor_panel(readings, errors, sensor, key, limits, tag, is_temperature):
+    value = valid_value(readings, errors, sensor, key)
+    if value is not None:
+        return measured_panel(value, limits, tag, is_temperature)
+    disconnected = errors.get(sensor) == "disc"
+    return Panel("disc" if disconnected else "nodata", None, tag,
+                 f"{tag} desconectado" if disconnected else "Sin lectura válida")
 
 
 @dataclass

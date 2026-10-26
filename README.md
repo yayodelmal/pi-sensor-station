@@ -2,11 +2,11 @@
 
 Lightweight Python sensor station for Raspberry Pi Zero W with SHT31 and DS18B20 readings, a 3.5-inch LCD display, and HTTP data delivery to a remote API.
 
-One Python service reads both sensors, draws directly to the LCD framebuffer with Pillow, and sends JSON to [go-sensor-data-collector](https://github.com/yayodelmal/go-sensor-data-collector) on another server. A desktop environment is unnecessary. Touch input is not implemented.
+One Python service reads both sensors, draws directly to the LCD framebuffer with Pillow, and sends JSON to [go-sensor-data-collector](https://github.com/yayodelmal/go-sensor-data-collector) on another server. A desktop environment is unnecessary.
 
 ![Monitoreo display at 480×320](design/monitor-preview.png)
 
-The display follows the supplied [HTML reference](design/monitoreo-reference.html): temperature and humidity dials, target bands, Spanish status labels, clock, sensor fallback and delivery status. High contrast is the default palette, centralized in `src/pi_sensor_station/colores.py`. It runs entirely in Pillow; the HTML is a design artifact. Fonts and their OFL licenses ship with the package.
+The display follows the v2 480×320 handoff: separate air temperature and humidity dials from the SHT31, a substrate temperature strip from the DS18B20, and a three-measurement 24-hour summary. Each measurement depends only on its designated sensor; readings are never substituted across sensors. High contrast is the default palette. It runs entirely in Pillow; the HTML is a design artifact. Fonts and their OFL licenses ship with the package.
 
 ## Wiring
 
@@ -100,15 +100,15 @@ A hardware-free smoke test that does not send fabricated data:
 
 ## Display configuration and previews
 
-Copy `config.example.json` to `config.json` and set `MONITOR_CONFIG=/home/zero/pi-sensor-station/config.json` in `.env` to customize the display. Restart the service after edits. Invalid configurations stop startup with a clear error.
+Copy `config.example.json` to `config.json` and set `MONITOR_CONFIG=/home/zero/pi-sensor-station/config.json` in `.env` to customize the display. Restart the service after edits. Invalid or incomplete ranges fall back to defaults with a warning.
 
-Defaults mirror the reference: temperature target 22–24 °C on a 16–32 °C dial, humidity target 85–92% on a 60–100% dial. These are adjustable design defaults. `temperature_source` selects `ds18b20` or `sht31`. `temperature_fallback` allows the other sensor to supply the displayed temperature when the preferred sensor fails. Disable fallback when the probes measure different environments. This affects the display only: each HTTP endpoint always receives its own sensor's reading.
+Defaults mirror the handoff: air temperature target 22–24 °C (visual scale 16–32), humidity target 85–92% (60–100), and provisional substrate target 21–25 °C (14–34). Edit the `temp`, `hum` and `sub` ranges independently. The `ui` section contains touchscreen, framebuffer and history options; environment variables still override those paths.
 
 Boundaries are inclusive. Out-of-target values remain visible, with ALTA/BAJA badges, colored borders and deviation notes. Invalid or missing readings show an em dash; CRC failures show SIN DATO and absent devices show SIN SENSOR. The display never substitutes the last valid measurement for a failed acquisition.
 
 The header starts at API pendiente and shows a success icon only after a successful HTTP batch. Delivery failures show API sin envío with elapsed minutes, covering network failures and HTTP rejections without assuming the cause is Wi-Fi. Disabled HTTP is labeled explicitly. Simulation adds a DEMO label on the physical display.
 
-Swipe horizontally to switch between Inicio and Resumen. Touch calibration is set with `TOUCH_DEVICE`, `TOUCH_RAW_X`, `TOUCH_RAW_Y` and `TOUCH_ROTATION` in `.env`; short and vertical touches are ignored. With no `TOUCH_DEVICE`, the app selects an input device that reports absolute axes. The Resumen page keeps a 96-point, 24-hour history with one averaged sample every 15 minutes. It persists atomically at `HISTORY_PATH` (the systemd service uses `/var/lib/pi-sensor-station/history.json`).
+Swipe horizontally to switch between Inicio and Resumen. Short touches and vertical movement do not change pages. The touchscreen is polled every 100 ms. Touch calibration is set with `TOUCH_DEVICE`, `TOUCH_RAW_X`, `TOUCH_RAW_Y` and `TOUCH_ROTATION` in `.env`; with no `TOUCH_DEVICE`, the app selects an input device that reports absolute axes. The Resumen page keeps three independent 96-point, 24-hour histories with one averaged sample every 15 minutes. It persists atomically at `HISTORY_PATH` (the systemd service uses `/var/lib/pi-sensor-station/history.json`).
 
 Generate all 14 scenarios without sensors, a framebuffer or network requests:
 
@@ -117,7 +117,8 @@ Generate all 14 scenarios without sensors, a framebuffer or network requests:
 # Add --config config.json to preview custom targets.
 ```
 
-Render the 26 deterministic Inicio/Resumen scenario PNGs with `--render-golden DIR`.
+Render the 30 deterministic Inicio/Resumen scenario PNGs with `--render-golden DIR`.
+The supplied visual reference and expected screenshots are preserved in [design/monitor-v2](design/monitor-v2/README.md).
 
 The output includes individual 480×320 PNGs and a contact sheet (`scenarios.png`). Dials are antialiased at 3× resolution and panel images are cached. Decorative animation is omitted. The main loop polls at up to 1 Hz, sensor reads follow `READ_INTERVAL`, and identical frames are not written again. The clock changes once per minute.
 

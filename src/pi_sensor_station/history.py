@@ -13,8 +13,9 @@ SAMPLE_COUNT = 96
 class History:
     def __init__(self, path=None, now=None):
         self.path = Path(path) if path else None
-        self.samples = {"temperature": [None] * SAMPLE_COUNT, "humidity": [None] * SAMPLE_COUNT}
-        self._buckets = {"temperature": [], "humidity": []}
+        self.samples = {"temperature": [None] * SAMPLE_COUNT, "humidity": [None] * SAMPLE_COUNT,
+                        "substrate": [None] * SAMPLE_COUNT}
+        self._buckets = {name: [] for name in self.samples}
         self.last_slot = None
         self.last_flush = 0.0
         self.load(now)
@@ -25,6 +26,12 @@ class History:
         now = time.time() if now is None else now
         try:
             data = json.loads(self.path.read_text())
+            if not isinstance(data, dict):
+                raise ValueError("History JSON must be an object")
+            # Version 1 temperature history could contain either sensor because
+            # the old UI allowed fallback. Never relabel that data as air temp.
+            if data.get("version") != 2:
+                return
             items = data.get("samples", {})
             saved_at = float(data.get("saved_at", now))
             for name in self.samples:
@@ -36,7 +43,7 @@ class History:
                            for i, v in enumerate(values[-SAMPLE_COUNT:])]
                 self.samples[name] = ([None] * (SAMPLE_COUNT - len(restored)) + restored)[-SAMPLE_COUNT:]
         except (OSError, ValueError, TypeError, KeyError):
-            self.samples = {"temperature": [None] * SAMPLE_COUNT, "humidity": [None] * SAMPLE_COUNT}
+            self.samples = {name: [None] * SAMPLE_COUNT for name in ("temperature", "humidity", "substrate")}
 
     def update(self, readings, timestamp=None):
         timestamp = time.time() if timestamp is None else timestamp
@@ -65,7 +72,8 @@ class History:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         now = time.time()
-        payload = {"samples": {name: values[-SAMPLE_COUNT:] for name, values in self.samples.items()},
+        payload = {"version": 2,
+                   "samples": {name: values[-SAMPLE_COUNT:] for name, values in self.samples.items()},
                    "saved_at": now}
         fd, temp = tempfile.mkstemp(prefix=self.path.name + ".", dir=str(self.path.parent))
         try:

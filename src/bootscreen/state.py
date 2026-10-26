@@ -16,12 +16,23 @@ class AnimationPlan:
         self.flash_until = {}
         self.ready_started = None
         self.error_started = None
+        self.previous_title = None
+        self.dots_started = None
 
     def update(self, screen, now):
         cfg = self.config
         active = cfg.enabled
         statuses = tuple(step.status for step in screen.steps)
         mode = screen.mode
+        title = screen.title
+        if title == "INICIANDO":
+            if self.previous_title != title:
+                self.dots_started = now
+            screen.dots = int((now - self.dots_started) / 0.4) % 4
+        else:
+            self.dots_started = None
+            screen.dots = 3
+        self.previous_title = title
         if self.previous_statuses is not None and active and cfg.step_flash:
             for i, (old, new) in enumerate(zip(self.previous_statuses, statuses)):
                 if old != OK and new == OK:
@@ -40,7 +51,8 @@ class AnimationPlan:
         blink = active and cfg.blink and ((now - self.started) % 1.0 < 0.5)
         screen.cursor_on = blink if active and cfg.blink else True
         screen.blink_on = screen.cursor_on
-        screen.dots = int((now - self.started) / 0.32) % 4 if active and cfg.dots else 3
+        if not active or not cfg.dots:
+            screen.dots = 3
         screen.flash_rows = tuple(i for i, until in self.flash_until.items() if active and cfg.step_flash and now < until)
         screen.flash_row = screen.flash_rows[0] if screen.flash_rows else None
         if mode == "ready" and active and cfg.ready_intro:
@@ -69,9 +81,9 @@ class AnimationPlan:
         if active and cfg.blink:
             phase = (now - self.started) % 1.0
             deadlines.append(now + (0.5 - phase if phase < 0.5 else 1.0 - phase))
-        if active and cfg.dots and screen.title == "INICIANDO":
-            phase = (now - self.started) % 0.32
-            deadlines.append(now + 0.32 - phase)
+        if active and cfg.dots and screen.title == "INICIANDO" and self.dots_started is not None:
+            phase = (now - self.dots_started) % 0.4
+            deadlines.append(now + 0.4 - phase)
         if active and screen.mode == "ready" and cfg.ready_intro and self.ready_started is not None:
             age = max(0.0, now - self.ready_started)
             for interval, total in ((0.15, 5), (0.9 / 16, 16)):
@@ -109,9 +121,11 @@ class Controller:
         if self.ready_at is not None:
             return
         self.last_snapshot = snapshot
-        # Previously passed checks can regress before LISTO; restart at that step.
+        # Regress only on a completed, explicit negative observation. A timeout or
+        # partial command output is unknown, not evidence that a ready step failed.
         for i in range(self.index):
-            if not snapshot.ready(self.config.steps[i]):
+            check = self.config.steps[i]
+            if snapshot.known(check) and not snapshot.ready(check):
                 self.index, self.started, self.retry_until = i, now, None
                 self.zero_shown = False
                 break
@@ -131,6 +145,8 @@ class Controller:
                 self.index += 1
                 self.started = now
                 continue
+            if not snapshot.known(step):
+                return
             if now - self.started >= step.timeout:
                 self.retry_until = now + self.config.retry_seconds
                 self.zero_shown = False

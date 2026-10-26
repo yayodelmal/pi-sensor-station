@@ -65,7 +65,7 @@ class Screen:
     # ---- fases de animacion (cada una se avanza desde el bucle del servicio) ----
     cursor_on: bool = True           # cursores de bloque, 1 Hz
     blink_on: bool = True            # marcador [..] y bloque lider, 1 Hz (misma fase)
-    dots: int = 3                    # puntos visibles tras INICIANDO: 0, 1, 2, 3 (cada 0.32 s)
+    dots: int = 3                    # puntos visibles tras INICIANDO: 0, 1, 2, 3 (cada 0.4 s)
     flash_row: Optional[int] = None  # indice de fila destellando (0.35 s tras pasar a OK)
     flash_rows: Tuple[int, ...] = () # filas que pasan a OK en el mismo sondeo
     reveal: int = 5                  # LISTO: barrido del titulo, 0..5 (pasos de 0.15 s)

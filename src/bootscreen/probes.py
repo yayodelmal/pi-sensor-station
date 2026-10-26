@@ -11,6 +11,17 @@ class Snapshot:
     network_ok: bool = False
     ip: str = ""
     other: dict = field(default_factory=dict)
+    network_checked: bool = True
+
+    def known(self, check):
+        """Whether this snapshot contains a completed observation for a check."""
+        if not check.enabled:
+            return True
+        if check.kind == "systemd":
+            return all(unit in self.units for unit in check.units)
+        if check.kind == "network":
+            return self.network_checked
+        return check.label in self.other
 
     def ready(self, check):
         if not check.enabled:
@@ -59,20 +70,24 @@ class Probes:
             if result:
                 snapshot.units = {unit: value == "active" for unit, value in zip(units, result.stdout.splitlines())}
         if any(s.enabled and s.kind == "network" for s in self.config.steps):
+            snapshot.network_checked = False
             addresses = self.run(["ip", "-j", "-4", "address", "show", "dev", self.config.interface])
             routes = self.run(["ip", "-j", "-4", "route", "show", "default", "dev", self.config.interface])
+            if addresses is not None and routes is not None:
+                snapshot.network_checked = True
             if addresses and routes and addresses.returncode == routes.returncode == 0:
                 try:
                     snapshot.ip = network_address(json.loads(addresses.stdout), json.loads(routes.stdout), self.config.interface)
                     snapshot.network_ok = bool(snapshot.ip)
                 except (ValueError, TypeError, KeyError):
-                    pass
+                    snapshot.network_checked = False
         for step in self.config.steps:
             if not step.enabled:
                 continue
             if step.kind == "command":
                 result = self.run(list(step.command))
-                snapshot.other[step.label] = result is not None and result.returncode == 0
+                if result is not None:
+                    snapshot.other[step.label] = result.returncode == 0
             elif step.kind == "tcp":
                 try:
                     with socket.create_connection((step.host, step.port), timeout=self.config.check_timeout):

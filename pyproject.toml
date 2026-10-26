@@ -17,5 +17,5 @@ bootscreen = "bootscreen.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-pi_sensor_station = ["assets/fonts/*.ttf", "assets/fonts/*.txt"]
+pi_sensor_station = ["assets/fonts/*.ttf", "assets/fonts/*.txt", "assets/*.svg"]
 bootscreen = ["assets/*.ttf", "assets/*.txt"]

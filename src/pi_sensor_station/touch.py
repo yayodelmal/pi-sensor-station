@@ -11,24 +11,32 @@ class Swipe:
         self.start = self.last = None
         self.position = (0, 0)
         self.down = False
+        self.gesture_count = 0
+        self.last_gesture = None
+        self.last_contact_time = None
 
     def feed(self, x, y, down, now=None):
         now = time.monotonic() if now is None else now
         if down and not self.down:
             self.start = self.last = (x, y, now)
+            self.down = True
         elif down and self.start:
             self.last = (x, y, now)
-        elif not down and self.down and self.start:
-            sx, sy, st = self.start
-            dx, dy = x - sx, y - sy
-            duration = max(1, (now - st) * 1000)
-            velocity = abs(dx) / duration
-            result = (1 if dx < 0 else -1) if abs(dx) > 60 or (abs(dx) > 20 and velocity > .5) else 0
-            if abs(dx) <= 8 or abs(dx) <= 1.5 * abs(dy):
-                result = 0
+        elif not down and self.down:
+            start, end = self.start, self.last or self.start
             self.start = self.last = None
             self.down = False
-            return result
+            if start and end:
+                dx, dy = end[0] - start[0], end[1] - start[1]
+                elapsed_ms = max(1.0, (end[2] - start[2]) * 1000)
+                if abs(dx) > 8 and abs(dx) > 1.5 * abs(dy) and (
+                    abs(dx) > 60 or (abs(dx) > 20 and abs(dx) / elapsed_ms > .5)
+                ) and (self.last_contact_time is None or now - self.last_contact_time >= .35):
+                    self.last_contact_time = now
+                    self.gesture_count += 1
+                    self.last_gesture = (start[0], start[1], dx, dy)
+                    self.position = (x, y)
+                    return 1 if dx < 0 else -1
         self.position = (x, y)
         self.down = bool(down)
         return 0
