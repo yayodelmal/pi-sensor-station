@@ -37,10 +37,10 @@ class Display:
         self.last = None
         self.last_image = None
 
-    def draw(self, readings, errors, network, simulated=False, page=0, history=None):
+    def draw(self, readings, errors, network, simulated=False):
         from PIL import ImageChops
 
-        image = self.renderer.render(readings, errors, network, simulated=simulated, page=page, history=history)
+        image = self.renderer.render(readings, errors, network, simulated=simulated)
         if image is self.last_image:
             return
         dirty = image.getbbox() if self.last_image is None else ImageChops.difference(image, self.last_image).getbbox()

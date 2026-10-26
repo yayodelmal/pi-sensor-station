@@ -59,16 +59,8 @@ class MonitorConfig:
                     if item:
                         converted[target] = Range(item.get("min"), item.get("max"), item.get("scale_min"), item.get("scale_max"))
                 ui = data.get("ui", {})
-                if ui.get("history_path"):
-                    os.environ.setdefault("HISTORY_PATH", ui["history_path"])
-                if ui.get("touch_device"):
-                    os.environ.setdefault("TOUCH_DEVICE", ui["touch_device"])
                 if ui.get("framebuffer"):
                     os.environ.setdefault("FRAMEBUFFER", ui["framebuffer"])
-                if ui.get("history_flush_s"):
-                    os.environ.setdefault("HISTORY_FLUSH_S", str(ui["history_flush_s"]))
-                if ui.get("auto_return_home_s"):
-                    os.environ.setdefault("AUTO_RETURN_HOME_S", str(ui["auto_return_home_s"]))
                 for key in ("temperature", "humidity", "substrate"):
                     if key not in converted:
                         converted[key] = getattr(cls(), key)

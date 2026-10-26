@@ -3,10 +3,6 @@
   "hum":  { "min": 85.0, "max": 92.0, "scale_min": 60, "scale_max": 100 },
   "sub":  { "min": 21.0, "max": 25.0, "scale_min": 14, "scale_max": 34 },
   "ui": {
-    "auto_return_home_s": 0,
-    "history_path": "/var/lib/pi-sensor-station/history.json",
-    "history_flush_s": 900,
-    "touch_device": "/dev/input/event0",
     "framebuffer": "/dev/fb1"
   }
 }

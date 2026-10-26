@@ -7,14 +7,11 @@ After=network-online.target
 Type=notify
 NotifyAccess=main
 User=zero
-SupplementaryGroups=i2c video input
+SupplementaryGroups=i2c video
 WorkingDirectory=/home/zero/pi-sensor-station
 Environment=PYTHONPATH=/home/zero/pi-sensor-station/src
 EnvironmentFile=-/home/zero/pi-sensor-station/.env
 Environment=PYTHONUNBUFFERED=1
-Environment=HISTORY_PATH=/var/lib/pi-sensor-station/history.json
-StateDirectory=pi-sensor-station
-StateDirectoryMode=0750
 ExecStart=/usr/bin/python3 -m pi_sensor_station --no-send
 Restart=on-failure
 RestartSec=10

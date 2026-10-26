@@ -12,7 +12,6 @@ from .api import API
 from .sensors import DS18B20, SHT31
 from .monitor import MonitorConfig, NetworkStatus, error_status
 from .notify import ready as notify_ready
-from .history import History
 
 LOG = logging.getLogger("pi-sensor-station")
 
@@ -30,7 +29,6 @@ def main():
     parser.add_argument("--no-send", action="store_true", help="Disable HTTP requests")
     parser.add_argument("--no-display", action="store_true", help="Disable framebuffer access")
     parser.add_argument("--once", action="store_true", help="Read once, await any HTTP send, then exit")
-    parser.add_argument("--page", choices=("home", "summary"), default="home", help="Initial display page")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
@@ -60,23 +58,6 @@ def main():
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda *_: stop.set())
     network = NetworkStatus("disabled" if api is None else "waiting")
-    history = History(os.getenv("HISTORY_PATH", "/home/zero/.local/state/pi-sensor-station/history.json"))
-    try:
-        from .touch import TouchReader
-        touch = TouchReader(os.getenv("TOUCH_DEVICE"),
-                            tuple(map(int, os.getenv("TOUCH_RAW_X", "0,4095").split(","))),
-                            tuple(map(int, os.getenv("TOUCH_RAW_Y", "0,4095").split(","))),
-                            int(os.getenv("TOUCH_ROTATION", "0")))
-        LOG.info("Touch navigation enabled: device=%s raw_x=%s raw_y=%s rotation=%d",
-                 touch.device, touch.raw_x, touch.raw_y, touch.rotation)
-    except (OSError, ValueError) as error:
-        LOG.info("Touch input unavailable: %s", error)
-        touch = None
-    page = 1 if args.page == "summary" else 0
-    auto_return = float(os.getenv("AUTO_RETURN_HOME_S", "0"))
-    if not math.isfinite(auto_return) or auto_return < 0:
-        parser.error("AUTO_RETURN_HOME_S must be a finite non-negative number")
-    last_interaction = time.monotonic()
     if args.simulate:
         LOG.warning("SIMULATION: readings are examples%s", "; HTTP sending is enabled" if api else "")
     next_send = 0
@@ -108,29 +89,13 @@ def main():
                             errors[name] = ("disc" if disconnected_streak[name] >= 3 else "nodata") if status == "disc" else status
                             LOG.warning("%s read failed: %s", name, error)
                 LOG.info("%sreadings: %s", "SIMULATED " if args.simulate else "", readings)
-                history.update(resolve_history_values(readings, errors, config))
                 next_read = time.monotonic() + read_interval
             if api and readings and pending is None and time.monotonic() >= next_send:
                 pending = executor.submit(api.send, readings)
                 next_send = time.monotonic() + send_interval
             if display:
                 try:
-                    if touch:
-                        previous_gesture = touch.swipe.gesture_count
-                        actions = touch.poll()
-                        if touch.swipe.gesture_count != previous_gesture:
-                            x, y, _, _ = touch.swipe.last_gesture
-                            LOG.info("Touch contact x=%d y=%d", x, y)
-                        for direction in actions:
-                            page = 1 - page
-                            last_interaction = time.monotonic()
-                            LOG.info("Touch changed page=%s",
-                                     "Resumen" if page else "Inicio")
-                    if page and auto_return and time.monotonic() - last_interaction >= auto_return:
-                        page = 0
-                        LOG.info("Auto-returned to Inicio")
-                    display.draw(readings, errors, network, simulated=args.simulate, page=page,
-                                 history=history.samples)
+                    display.draw(readings, errors, network, simulated=args.simulate)
                 except (OSError, ValueError) as error:
                     LOG.warning("LCD update failed: %s", error)
             if args.once:
@@ -150,22 +115,9 @@ def main():
                 notify_ready()
                 notified = True
             # Poll completion and update the clock without reading sensors at 1 Hz.
-            touch_poll = 0.1 if touch else 1.0
-            delay = min(touch_poll, max(0, next_read - time.monotonic()))
-            history.flush_if_due(float(os.getenv("HISTORY_FLUSH_S", "60")))
+            delay = min(1.0, max(0, next_read - time.monotonic()))
             stop.wait(delay)
-    history.flush_if_due(force=True)
-    if touch:
-        touch.close()
     return 0
-
-
-def resolve_history_values(readings, errors, config):
-    """Return the three independent measurements; never substitute sensors."""
-    from .monitor import valid_value
-    return {"temperature": valid_value(readings, errors, "sht31", "temperature"),
-            "humidity": valid_value(readings, errors, "sht31", "humidity"),
-            "substrate": valid_value(readings, errors, "ds18b20", "temperature")}
 
 
 if __name__ == "__main__":
