@@ -35,6 +35,7 @@ dtparam=i2c_arm=on
 dtparam=spi=on
 dtoverlay=w1-gpio,gpiopin=4
 dtoverlay=fbtft,spi0-0,ili9486,regwidth=16,reset_pin=25,dc_pin=24,speed=16000000,rotate=90,bgr=1
+dtoverlay=ads7846,cs=1,penirq=17,penirq_pull=2,speed=1000000,keep_vref_on=1,swapxy=1,pmax=255,xohms=60
 ```
 
 This LCD configuration was tested on this project's Pi. Other revisions may differ. Do not force `width=480,height=320` with rotation 0; that distorted the image on this unit. Reboot after changing configuration, then check:
@@ -122,7 +123,7 @@ The output includes individual 480×320 PNGs and a contact sheet (`scenarios.png
 
 ## Boot screen
 
-The early boot status display, systemd units, per-step TOML settings, measured Raspberry Pi Zero startup results and rollback procedure are documented in [docs/bootscreen.md](docs/bootscreen.md). It currently holds the **LISTO** screen after verifying `wlan0`, SSH, Avahi and the headless demo service; the monitoring UI remains a separate later step.
+The early boot status display, v2 animations, systemd units, measured Raspberry Pi Zero results and rollback procedure are documented in [docs/bootscreen.md](docs/bootscreen.md). It verifies `wlan0`, SSH, Avahi and the headless demo service; the monitoring UI remains a separate later step.
 
 A one-off smoke test on the physical Pi Zero W rendered and wrote the first demo frame in 0.887 seconds, used 23.9 MiB peak RSS, and averaged 0.00055 seconds per unchanged update over ten calls. This measures the display path with simulated values, not the complete sensor and network service.
 

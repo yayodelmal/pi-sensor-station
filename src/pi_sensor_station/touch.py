@@ -62,20 +62,20 @@ class TouchReader:
         return devices[0]
 
     @staticmethod
-    def _map(value, bounds, maximum):
+    def _normalize(value, bounds):
         low, high = bounds
-        return max(0, min(maximum, round((value - low) * maximum / max(1, high - low))))
+        return max(0.0, min(1.0, (value - low) / max(1, high - low)))
 
     def _point(self):
-        x = self._map(self.x, self.raw_x, 479)
-        y = self._map(self.y, self.raw_y, 319)
+        x = self._normalize(self.x, self.raw_x)
+        y = self._normalize(self.y, self.raw_y)
         if self.rotation == 90:
-            x, y = 479 - y, x * 319 // 479
+            x, y = 1 - y, x
         elif self.rotation == 180:
-            x, y = 479 - x, 319 - y
+            x, y = 1 - x, 1 - y
         elif self.rotation == 270:
-            x, y = y * 479 // 319, 319 - x * 319 // 479
-        return x, y
+            x, y = y, 1 - x
+        return round(x * 479), round(y * 319)
 
     def poll(self):
         actions = []
