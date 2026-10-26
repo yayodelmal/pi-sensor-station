@@ -1,0 +1,21 @@
+[Unit]
+Description=Sensor station initialization demo (no LCD, sensors or HTTP)
+After=network.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=zero
+Environment=PYTHONPATH=/opt/bootscreen/station
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m pi_sensor_station --simulate --no-display --no-send
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,25 @@
+[Unit]
+Description=Early framebuffer boot progress
+DefaultDependencies=no
+After=local-fs.target systemd-udevd.service
+Conflicts=shutdown.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bootscreen
+Group=video
+RuntimeDirectory=bootscreen
+RuntimeDirectoryMode=0775
+RuntimeDirectoryPreserve=yes
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=3
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/bootscreen
+
+[Install]
+WantedBy=sysinit.target

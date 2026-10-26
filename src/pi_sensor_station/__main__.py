@@ -1,4 +1,5 @@
 import argparse
+import atexit
 import logging
 import math
 import os
@@ -51,6 +52,7 @@ def main():
             from .display import Display
 
             display = Display(os.getenv("FRAMEBUFFER", "/dev/fb1"), config)
+            atexit.register(display.close)
         except (OSError, ValueError, ImportError) as error:
             LOG.warning("LCD unavailable; continuing without display: %s", error)
 

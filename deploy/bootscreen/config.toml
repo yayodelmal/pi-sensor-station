@@ -1,0 +1,44 @@
+[display]
+framebuffer = "/dev/fb1"
+
+[animations]
+enabled = true
+blink = true
+dots = true
+step_flash = true
+ready_intro = false
+error_strip = true
+max_fps = 5
+
+[runtime]
+interface = "wlan0"
+retry_seconds = 8
+poll_seconds = 1.0
+check_timeout = 1.0
+
+[[steps]]
+label = "Sistema"
+kind = "systemd"
+units = ["basic.target"]
+timeout = 60
+error_title = "ERROR"
+
+[[steps]]
+label = "Wi-Fi"
+kind = "network"
+timeout = 60
+error_title = "SIN WI-FI"
+
+[[steps]]
+label = "Servicios"
+kind = "systemd"
+units = ["ssh.service", "avahi-daemon.service"]
+timeout = 60
+error_title = "ERROR"
+
+[[steps]]
+label = "App"
+kind = "systemd"
+units = ["pi-sensor-station.service"]
+timeout = 60
+error_title = "ERROR"

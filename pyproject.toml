@@ -7,13 +7,15 @@ name = "pi-sensor-station"
 version = "0.1.0"
 description = "SHT31 and DS18B20 station with a framebuffer LCD and remote HTTP ingestion"
 requires-python = ">=3.9"
-dependencies = ["Pillow>=9.2", "smbus2>=0.4.3"]
+dependencies = ["Pillow>=9.2", "smbus2>=0.4.3", "tomli>=2; python_version < '3.11'"]
 
 [project.scripts]
 pi-sensor-station = "pi_sensor_station.__main__:main"
+bootscreen = "bootscreen.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 pi_sensor_station = ["assets/fonts/*.ttf", "assets/fonts/*.txt"]
+bootscreen = ["assets/*.ttf", "assets/*.txt"]
