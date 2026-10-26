@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 from .api import API
 from .sensors import DS18B20, SHT31
 from .monitor import MonitorConfig, NetworkStatus, error_status
+from .notify import ready as notify_ready
+from .history import History
 
 LOG = logging.getLogger("pi-sensor-station")
 
@@ -27,6 +29,7 @@ def main():
     parser.add_argument("--no-send", action="store_true", help="Disable HTTP requests")
     parser.add_argument("--no-display", action="store_true", help="Disable framebuffer access")
     parser.add_argument("--once", action="store_true", help="Read once, await any HTTP send, then exit")
+    parser.add_argument("--page", choices=("home", "summary"), default="home", help="Initial display page")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
@@ -55,11 +58,23 @@ def main():
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda *_: stop.set())
     network = NetworkStatus("disabled" if api is None else "waiting")
+    history = History(os.getenv("HISTORY_PATH", "/home/zero/.local/state/pi-sensor-station/history.json"))
+    try:
+        from .touch import TouchReader
+        touch = TouchReader(os.getenv("TOUCH_DEVICE"),
+                            tuple(map(int, os.getenv("TOUCH_RAW_X", "0,4095").split(","))),
+                            tuple(map(int, os.getenv("TOUCH_RAW_Y", "0,4095").split(","))),
+                            int(os.getenv("TOUCH_ROTATION", "0")))
+    except (OSError, ValueError) as error:
+        LOG.info("Touch input unavailable: %s", error)
+        touch = None
+    page = 1 if args.page == "summary" else 0
     if args.simulate:
         LOG.warning("SIMULATION: readings are examples%s", "; HTTP sending is enabled" if api else "")
     next_send = 0
     next_read = 0
     pending = None
+    notified = False
     readings, errors = {}, {}
     with ThreadPoolExecutor(max_workers=1) as executor:
         while not stop.is_set():
@@ -81,13 +96,17 @@ def main():
                             errors[name] = error_status(error)
                             LOG.warning("%s read failed: %s", name, error)
                 LOG.info("%sreadings: %s", "SIMULATED " if args.simulate else "", readings)
+                history.update(resolve_history_values(readings, errors, config))
                 next_read = time.monotonic() + read_interval
             if api and readings and pending is None and time.monotonic() >= next_send:
                 pending = executor.submit(api.send, readings)
                 next_send = time.monotonic() + send_interval
             if display:
                 try:
-                    display.draw(readings, errors, network, simulated=args.simulate)
+                    if touch:
+                        for direction in touch.poll(): page = max(0, min(1, page + direction))
+                    display.draw(readings, errors, network, simulated=args.simulate, page=page,
+                                 history=history.samples)
                 except (OSError, ValueError) as error:
                     LOG.warning("LCD update failed: %s", error)
             if args.once:
@@ -103,10 +122,29 @@ def main():
                     if any(v != "ok" for v in results.values()):
                         return 1
                 return 1 if errors else 0
+            if not notified and not errors:
+                notify_ready()
+                notified = True
             # Poll completion and update the clock without reading sensors at 1 Hz.
             delay = min(1, max(0, next_read - time.monotonic()))
+            history.flush_if_due(float(os.getenv("HISTORY_FLUSH_S", "60")))
             stop.wait(delay)
+    history.flush_if_due(force=True)
+    if touch:
+        touch.close()
     return 0
+
+
+def resolve_history_values(readings, errors, config):
+    """Return valid effective temperature and humidity for the current interval."""
+    from .monitor import valid_value
+    source = config.temperature_source
+    other = "sht31" if source == "ds18b20" else "ds18b20"
+    temp = valid_value(readings, errors, source, "temperature")
+    if temp is None and config.temperature_fallback:
+        temp = valid_value(readings, errors, other, "temperature")
+    humidity = valid_value(readings, errors, "sht31", "humidity")
+    return {"temperature": temp, "humidity": humidity}
 
 
 if __name__ == "__main__":

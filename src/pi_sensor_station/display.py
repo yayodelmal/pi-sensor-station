@@ -33,8 +33,8 @@ class Display:
         self.last = None
         self.last_image = None
 
-    def draw(self, readings, errors, network, simulated=False):
-        image = self.renderer.render(readings, errors, network, simulated=simulated)
+    def draw(self, readings, errors, network, simulated=False, page=0, history=None):
+        image = self.renderer.render(readings, errors, network, simulated=simulated, page=page, history=history)
         if image is self.last_image:
             return
         data = rgb565(image)

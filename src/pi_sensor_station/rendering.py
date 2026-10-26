@@ -15,6 +15,8 @@ from .colores import (
     DANGER, NO_DATA, NO_DATA_BORDER,
 )
 
+BAND = "#173724"
+
 SCALE = 3
 
 
@@ -149,11 +151,105 @@ class Renderer:
         c.text((213, 241), f"{limits.minimum:g} – {limits.maximum:g} {'°C' if temperature else '%'}", "Barlow-SemiBold", 13, SECONDARY, align="right", max_width=137)
         return c.finish()
 
-    def render(self, readings, errors, network=None, clock=None, now=None, simulated=False):
+    def _summary_card(self, title, panel, limits, samples, temperature):
+        c = Canvas((228, 234), BACKGROUND, self.font)
+        accent = TEMPERATURE_ARC if temperature else HUMIDITY_ARC
+        c.rounded((0, 0, 227, 233), 15, PANEL, PANEL_BORDER)
+        c.text((14, 20), title, "Barlow-SemiBold", 13, MUTED, spacing=.6)
+        value_color = {"ok": TEXT, "high": HIGH, "low": LOW, "disc": NO_DATA, "nodata": NO_DATA}[panel.state]
+        value = "—" if panel.value is None else decimal(panel.value) if temperature else str(math.floor(panel.value + .5))
+        c.text((176, 31), value, "BarlowCondensed-SemiBold", 26, value_color, align="right")
+        c.text((211, 31), "°C" if temperature else "%", "Barlow-SemiBold", 14, MUTED, align="right")
+        x0, x1, y0, y1 = 42, 186, 60, 101
+        vals = [v for v in samples if isinstance(v, (int, float))]
+        pad = max(limits.maximum - limits.minimum, 1) * .75
+        domain0 = min([limits.minimum - pad] + vals)
+        domain1 = max([limits.maximum + pad] + vals)
+        def py(v): return y1 - (v - domain0) * (y1 - y0) / max(1e-9, domain1 - domain0)
+        band_top, band_bottom = py(limits.maximum), py(limits.minimum)
+        c.rounded((x0, band_top, x1, band_bottom), 0, BAND)
+        for yy in (band_top, band_bottom):
+            for xx in range(x0, x1, 6): c.line([(xx, yy), (min(xx + 3, x1), yy)], TARGET_ZONE, 1)
+        c.text((38, y0 - 7), decimal(domain1) if temperature else str(round(domain1)), "Barlow-Regular", 10, MUTED, align="right")
+        c.text((38, y1 - 5), decimal(domain0) if temperature else str(round(domain0)), "Barlow-Regular", 10, MUTED, align="right")
+        previous = None
+        step = (x1 - x0) / max(1, len(samples) - 1)
+        for i, sample in enumerate(samples):
+            point = None if sample is None else (x0 + i * step, py(sample))
+            if previous is not None and point is not None: c.line([previous, point], accent, 2)
+            previous = point
+        if samples and samples[-1] is not None:
+            xx = x0 + (len(samples) - 1) * step; yy = py(samples[-1])
+            c.ellipse((xx - 4, yy - 4, xx + 4, yy + 4), TEXT, PANEL, 2)
+        c.text((x0, 112), "−24 h", "Barlow-Regular", 10, MUTED)
+        c.text(((x0+x1)/2, 112), "−12 h", "Barlow-Regular", 10, MUTED, align="center")
+        c.text((x1, 112), "ahora", "Barlow-Regular", 10, MUTED, align="right")
+        values = [v for v in samples if v is not None]
+        if values:
+            stats = (min(values), sum(values) / len(values), max(values))
+            for x, label, val, align in ((14, "Mín", stats[0], "left"), (114, "Prom", stats[1], "center"), (211, "Máx", stats[2], "right")):
+                c.text((x, 148), label, "Barlow-Regular", 12, MUTED, align=align)
+                c.text((x, 171), decimal(val) if temperature else str(round(val)), "BarlowCondensed-SemiBold", 21, SECONDARY, align=align)
+            pct = round(sum(limits.minimum <= v <= limits.maximum for v in values) * 100 / len(values))
+            c.text((14, 195), "En rango · 24 h", "Barlow-SemiBold", 12, SECONDARY)
+            c.text((211, 195), f"{pct} %", "Barlow-SemiBold", 12, SECONDARY, align="right")
+            c.rounded((14, 211, 212, 219), 4, TRACK)
+            if pct: c.rounded((14, 211, 14 + 1.98 * pct, 219), 4, OPTIMAL)
+        return c.finish()
+
+    def _summary(self, readings, errors, network, history, clock, now, simulated):
+        temperature, humidity = resolve_panels(readings, errors, self.config)
+        samples = history or {}
+        temp_hist = samples.get("temperature", [None] * 96)
+        hum_hist = samples.get("humidity", [None] * 96)
+        image = Image.new("RGB", (480, 320), BACKGROUND)
+        header = Canvas((480, 44), BACKGROUND, self.font)
+        header.ellipse((18,14,35,31), OPTIMAL); header.draw.rectangle(header.box((17,24,36,33)), fill=BACKGROUND)
+        header.rounded((24,24,29,32),1,SECONDARY); header.text((48,15),"Monitoreo", "Fraunces",21,TEXT)
+        header.text((464,13),clock,"BarlowCondensed-Medium",24,SECONDARY,align="right",spacing=.96)
+        label = network.label(now)
+        if label:
+            color = HIGH if network.state == "fail" else MUTED
+            width = min(150, math.ceil(header.text_width(label, "Barlow-SemiBold", 12)) + 16)
+            header.rounded((392-width, 9, 392, 34), 12, BACKGROUND, color)
+            header.text((392-width/2, 16), label, "Barlow-SemiBold", 12, color, align="center", max_width=width-14)
+        else:
+            header.ellipse((378,18,388,27),BACKGROUND,OPTIMAL,1.6)
+            header.ellipse((382,15,391,26),BACKGROUND,OPTIMAL,1.6)
+            header.ellipse((387,19,396,27),BACKGROUND,OPTIMAL,1.6)
+            header.draw.rectangle(header.box((382,21,392,26)), fill=BACKGROUND)
+            header.line([(381,27),(393,27)],OPTIMAL,1.6)
+            header.line([(384,22),(387,24),(391,20)],OPTIMAL,1.6)
+        if simulated: header.text((164,20),"DEMO","Barlow-Bold",9,HIGH)
+        image.paste(header.finish(),(0,0))
+        image.paste(self._summary_card("TEMPERATURA", temperature, self.config.temperature, temp_hist, True),(8,44))
+        image.paste(self._summary_card("HUMEDAD", humidity, self.config.humidity, hum_hist, False),(244,44))
+        # Compact sensor/API health strip.
+        c = Canvas((464,26), PANEL, self.font); c.rounded((0,0,463,25),13,PANEL,PANEL_BORDER)
+        statuses = [("DS18B20", errors.get("ds18b20")), ("SHT31", errors.get("sht31")), ("API", network.state)]
+        for i,(name,status) in enumerate(statuses):
+            x = 12 + i*150; color = OPTIMAL if status in (None,"ok") else DANGER if status == "disc" else HIGH
+            c.ellipse((x,8,x+9,17),color)
+            c.text((x+14,6),name,"Barlow-Medium",12,SECONDARY)
+            suffix = "sin dato" if status == "nodata" else "desconectado" if status == "disc" else "sin conexión" if name == "API" and status == "fail" else "en línea"
+            c.text((x+65,6),suffix,"Barlow-Regular",11,color if status in ("disc","fail") else MUTED)
+        image.paste(c.finish(),(8,286))
+        for x, active in ((232,False),(243,True)):
+            ImageDraw.Draw(image).rounded_rectangle((x,313,x+(14 if active else 5),318),2,fill=MUTED if active else NO_DATA_BORDER)
+        return image
+
+    def render(self, readings, errors, network=None, clock=None, now=None, simulated=False, page=0, history=None):
         network = network or NetworkStatus()
         clock = clock or datetime.now().strftime("%H:%M")
         label = network.label(now)
         temperature, humidity = resolve_panels(readings, errors, self.config)
+        if page == 1:
+            key = ("summary", temperature, humidity, network.state, label, clock, simulated,
+                   tuple((history or {}).get("temperature", [])), tuple((history or {}).get("humidity", [])))
+            if self._frame_key != key:
+                self._frame = self._summary(readings, errors, network, history, clock, now, simulated)
+                self._frame_key = key
+            return self._frame
         key = (temperature, humidity, network.state, label, clock, simulated)
         if self._frame_key == key:
             return self._frame

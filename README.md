@@ -107,12 +107,16 @@ Boundaries are inclusive. Out-of-target values remain visible, with ALTA/BAJA ba
 
 The header starts at API pendiente and shows a success icon only after a successful HTTP batch. Delivery failures show API sin envío with elapsed minutes, covering network failures and HTTP rejections without assuming the cause is Wi-Fi. Disabled HTTP is labeled explicitly. Simulation adds a DEMO label on the physical display.
 
+Swipe horizontally to switch between Inicio and Resumen. Touch calibration is set with `TOUCH_DEVICE`, `TOUCH_RAW_X`, `TOUCH_RAW_Y` and `TOUCH_ROTATION` in `.env`; short and vertical touches are ignored. The Resumen page keeps a 96-point, 24-hour history with one averaged sample every 15 minutes. It persists atomically at `HISTORY_PATH` (the systemd service uses `/var/lib/pi-sensor-station/history.json`).
+
 Generate all 14 scenarios without sensors, a framebuffer or network requests:
 
 ```bash
 .venv/bin/python -m pi_sensor_station.preview --output /tmp/station-previews
 # Add --config config.json to preview custom targets.
 ```
+
+Render the 26 deterministic Inicio/Resumen scenario PNGs with `--render-golden DIR`.
 
 The output includes individual 480×320 PNGs and a contact sheet (`scenarios.png`). Dials are antialiased at 3× resolution and panel images are cached. Decorative animation is omitted. The main loop polls at up to 1 Hz, sensor reads follow `READ_INTERVAL`, and identical frames are not written again. The clock changes once per minute.
 
