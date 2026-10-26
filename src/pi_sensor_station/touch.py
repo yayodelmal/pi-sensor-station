@@ -48,10 +48,18 @@ class TouchReader:
 
     @staticmethod
     def find_device():
-        devices = sorted(Path("/dev/input").glob("event*"))
+        devices = []
+        for node in sorted(Path("/dev/input").glob("event*")):
+            capabilities = Path("/sys/class/input") / node.name / "device/capabilities/abs"
+            try:
+                has_absolute_axes = int(capabilities.read_text().strip(), 16) != 0
+            except (OSError, ValueError):
+                has_absolute_axes = False
+            if has_absolute_axes:
+                devices.append(node)
         if not devices:
-            raise FileNotFoundError("no /dev/input/event* touch device")
-        return devices[-1]
+            raise FileNotFoundError("no absolute-axis touch device in /dev/input")
+        return devices[0]
 
     @staticmethod
     def _map(value, bounds, maximum):

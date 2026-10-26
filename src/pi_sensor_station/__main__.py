@@ -122,7 +122,7 @@ def main():
                     if any(v != "ok" for v in results.values()):
                         return 1
                 return 1 if errors else 0
-            if not notified and not errors:
+            if not notified:
                 notify_ready()
                 notified = True
             # Poll completion and update the clock without reading sensors at 1 Hz.

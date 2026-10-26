@@ -107,7 +107,7 @@ Boundaries are inclusive. Out-of-target values remain visible, with ALTA/BAJA ba
 
 The header starts at API pendiente and shows a success icon only after a successful HTTP batch. Delivery failures show API sin envío with elapsed minutes, covering network failures and HTTP rejections without assuming the cause is Wi-Fi. Disabled HTTP is labeled explicitly. Simulation adds a DEMO label on the physical display.
 
-Swipe horizontally to switch between Inicio and Resumen. Touch calibration is set with `TOUCH_DEVICE`, `TOUCH_RAW_X`, `TOUCH_RAW_Y` and `TOUCH_ROTATION` in `.env`; short and vertical touches are ignored. The Resumen page keeps a 96-point, 24-hour history with one averaged sample every 15 minutes. It persists atomically at `HISTORY_PATH` (the systemd service uses `/var/lib/pi-sensor-station/history.json`).
+Swipe horizontally to switch between Inicio and Resumen. Touch calibration is set with `TOUCH_DEVICE`, `TOUCH_RAW_X`, `TOUCH_RAW_Y` and `TOUCH_ROTATION` in `.env`; short and vertical touches are ignored. With no `TOUCH_DEVICE`, the app selects an input device that reports absolute axes. The Resumen page keeps a 96-point, 24-hour history with one averaged sample every 15 minutes. It persists atomically at `HISTORY_PATH` (the systemd service uses `/var/lib/pi-sensor-station/history.json`).
 
 Generate all 14 scenarios without sensors, a framebuffer or network requests:
 
@@ -119,6 +119,10 @@ Generate all 14 scenarios without sensors, a framebuffer or network requests:
 Render the 26 deterministic Inicio/Resumen scenario PNGs with `--render-golden DIR`.
 
 The output includes individual 480×320 PNGs and a contact sheet (`scenarios.png`). Dials are antialiased at 3× resolution and panel images are cached. Decorative animation is omitted. The main loop polls at up to 1 Hz, sensor reads follow `READ_INTERVAL`, and identical frames are not written again. The clock changes once per minute.
+
+## Boot screen
+
+The early boot status display, systemd units, per-step TOML settings, measured Raspberry Pi Zero startup results and rollback procedure are documented in [docs/bootscreen.md](docs/bootscreen.md). It currently holds the **LISTO** screen after verifying `wlan0`, SSH, Avahi and the headless demo service; the monitoring UI remains a separate later step.
 
 A one-off smoke test on the physical Pi Zero W rendered and wrote the first demo frame in 0.887 seconds, used 23.9 MiB peak RSS, and averaged 0.00055 seconds per unchanged update over ten calls. This measures the display path with simulated values, not the complete sensor and network service.
 
@@ -133,6 +137,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now pi-sensor-station
 journalctl -u pi-sensor-station -f
 ```
+
+The checked-in unit uses `--no-send` so the monitor can start before API credentials are configured. Remove that flag from `ExecStart` after setting `API_URL` in `.env` to enable HTTP delivery.
 
 systemd loads `.env` through `EnvironmentFile`. Use simple `KEY=value` entries without `export` or shell expansion. Stop the service before launching a second instance that writes to the LCD.
 
