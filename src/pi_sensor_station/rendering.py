@@ -1,6 +1,7 @@
 """Native 480×320 Pillow interpretation of the supplied Monitoreo reference."""
 
 import math
+import time
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -227,11 +228,18 @@ class Renderer:
         # Compact sensor/API health strip.
         c = Canvas((464,26), PANEL, self.font); c.rounded((0,0,463,25),13,PANEL,PANEL_BORDER)
         statuses = [("DS18B20", errors.get("ds18b20")), ("SHT31", errors.get("sht31")), ("API", network.state)]
+        base_now = time.monotonic() if now is None else now
+        elapsed = max(0, base_now - (network.failed_since if network.failed_since is not None else base_now))
+        sent_ago = max(0, int(base_now - network.last_success)) if network.last_success is not None else 0
         for i,(name,status) in enumerate(statuses):
             x = 12 + i*150; color = OPTIMAL if status in (None,"ok") else DANGER if status == "disc" else HIGH
             c.ellipse((x,8,x+9,17),color)
             c.text((x+14,6),name,"Barlow-Medium",12,SECONDARY)
-            suffix = "sin dato" if status == "nodata" else "desconectado" if status == "disc" else "sin conexión" if name == "API" and status == "fail" else "en línea"
+            suffix = ("sin dato" if status == "nodata" else "desconectado" if status == "disc" else
+                      f"sin conexión {int(elapsed // 60)} min" if name == "API" and status == "fail" else
+                      f"envío hace {sent_ago} s" if name == "API" and status == "ok" else
+                      "pendiente" if name == "API" and status == "waiting" else
+                      "desactivado" if name == "API" and status == "disabled" else "en línea")
             c.text((x+65,6),suffix,"Barlow-Regular",11,color if status in ("disc","fail") else MUTED)
         image.paste(c.finish(),(8,286))
         for x, active in ((232,False),(243,True)):

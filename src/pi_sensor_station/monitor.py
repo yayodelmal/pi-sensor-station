@@ -133,11 +133,12 @@ def resolve_panels(readings, errors, config):
 class NetworkStatus:
     state: str = "waiting"
     failed_since: object = None
+    last_success: object = None
 
     def update(self, results, now=None):
         now = time.monotonic() if now is None else now
         if results and all(value == "ok" for value in results.values()):
-            self.state, self.failed_since = "ok", None
+            self.state, self.failed_since, self.last_success = "ok", None, now
         else:
             self.state = "fail"
             if self.failed_since is None:
@@ -148,5 +149,5 @@ class NetworkStatus:
             now = time.monotonic() if now is None else now
             elapsed = max(0, now - (self.failed_since if self.failed_since is not None else now))
             duration = "<1 min" if elapsed < 60 else f"{min(999, int(elapsed // 60))} min"
-            return f"API sin envío · {duration}"
+            return f"API sin conexión · {duration}"
         return {"disabled": "HTTP desactivado", "waiting": "API pendiente", "ok": ""}[self.state]
