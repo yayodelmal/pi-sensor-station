@@ -6,7 +6,11 @@ Magnitudes (cada una depende de UN solo sensor; NO hay respaldo cruzado, miden c
   'h' humedad del aire / microclima      <- SHT31
   's' temperatura del sustrato           <- DS18B20
 """
-from .tokens_v2 import DEFAULT_CONFIG
+DEFAULT_CONFIG = {
+    "temp": {"min": 22.0, "max": 24.0, "scale_min": 16, "scale_max": 32},
+    "hum": {"min": 85.0, "max": 92.0, "scale_min": 60, "scale_max": 100},
+    "sub": {"min": 21.0, "max": 25.0, "scale_min": 14, "scale_max": 34},
+}
 
 OK, NODATA, DISC = "ok", "nodata", "disc"        # estado de un sensor
 SENSOR = {"t": "sht31", "h": "sht31", "s": "ds18b20"}
