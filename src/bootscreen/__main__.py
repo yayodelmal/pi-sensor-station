@@ -6,12 +6,13 @@ import os
 import signal
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
 
 from .config import Config
 from .framebuffer import Framebuffer
-from .probes import Probes
+from .probes import Probes, Snapshot
 from .render import (ACTIVE, FAILED, OK, PENDING, Screen, Step, demo_frames,
                      demo_screens, layout_regions, render, render_partial)
 from .state import AnimationPlan, Controller
@@ -161,6 +162,8 @@ def main():
         controller = Controller(config)
         animator = AnimationPlan(config)
         probes = Probes(config)
+        probe_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bootscreen-probes")
+        probe_future = None
         next_poll = 0.0
         previous_state = None
         previous_key = None
@@ -181,6 +184,24 @@ def main():
                 if demo_elapsed >= 20:
                     break
             else:
+                if controller.ready_at is None and probe_future is not None and probe_future.done():
+                    try:
+                        snapshot = probe_future.result()
+                    except Exception:
+                        LOG.exception("readiness probe failed")
+                        snapshot = Snapshot()
+                    probe_future = None
+                    after = uptime()
+                    previous_index, previous_retry = controller.index, controller.retry_until
+                    controller.update(after, snapshot)
+                    next_poll = time.monotonic() + config.poll_seconds
+                    atomic_status(controller, after, first_frame)
+                    if (previous_index, previous_retry) != (controller.index, controller.retry_until):
+                        LOG.info("steps=%s retry_until=%s", [(s.label, s.status) for s in controller.screen(after).steps], controller.retry_until)
+                    if controller.ready_at is not None:
+                        LOG.info("ready uptime=%.3fs ip=%s", controller.ready_at, controller.screen(after).ip)
+                if controller.ready_at is None and probe_future is None and mono >= next_poll:
+                    probe_future = probe_executor.submit(probes.sample)
                 screen = controller.screen(now)
             animator.update(screen, mono)
             key = frame_key(screen)
@@ -191,7 +212,7 @@ def main():
                 if selected is None:
                     image = render(screen)
                 else:
-                    image = render_partial(screen, previous_image, selected, regions)
+                    image = render_partial(screen, previous_image, selected, regions, in_place=True)
                 rendered_at = time.monotonic()
                 elapsed_write = framebuffer.draw(image, force=selected is None,
                                                   leased=args.demo, regions=selected,
@@ -220,25 +241,15 @@ def main():
                     LOG.info("display_handoff monitor_active=true")
                     break
             if args.demo:
-                next_delay = animator.next_delay(screen, mono, uptime(), last_draw=last_draw)
-            elif controller.ready_at is None and now >= next_poll:
-                snapshot = probes.sample()
-                after = uptime()
-                previous_index, previous_retry = controller.index, controller.retry_until
-                controller.update(after, snapshot)
-                next_poll = after + config.poll_seconds
-                atomic_status(controller, after, first_frame)
-                if (previous_index, previous_retry) != (controller.index, controller.retry_until):
-                    LOG.info("steps=%s retry_until=%s", [(s.label, s.status) for s in controller.screen(after).steps], controller.retry_until)
-                if controller.ready_at is not None:
-                    LOG.info("ready uptime=%.3fs ip=%s", controller.ready_at, controller.screen(after).ip)
-                next_delay = animator.next_delay(screen, mono, uptime(), next_poll, last_draw)
+                next_delay = animator.next_delay(screen, time.monotonic(), uptime(), last_draw=last_draw)
             else:
-                next_delay = animator.next_delay(screen, mono, uptime(),
-                                                 next_poll if controller.ready_at is None else None,
+                next_delay = animator.next_delay(screen, time.monotonic(), uptime(),
+                                                 next_poll if controller.ready_at is None and probe_future is None else None,
                                                  last_draw)
             stop.wait(next_delay)
     finally:
+        if "probe_executor" in locals():
+            probe_executor.shutdown(wait=True, cancel_futures=True)
         if demo_preview is not None:
             LOG.info("demo_metrics frames=%d rows=%d mean_frame=%.6fs peak_frame=%.6fs mean_render=%.6fs mean_fb=%.6fs mean_pwrite=%.6fs peak_pwrite=%.6fs cpu=%.3fs",
                      demo_frames_written, demo_rows_written,

@@ -87,7 +87,7 @@ acumulando retrasos). Entre pantallas los cambios son instantáneos.
 | # | Animación | Dónde | Comportamiento exacto |
 |---|---|---|---|
 | A1 | Parpadeo 1 Hz | cursor del título, cursor de la IP, marcador `[..]`, bloque líder | 0.5 s visible, 0.5 s oculto; todos en la misma fase. Con el elemento oculto no se dibuja nada (fondo) |
-| A2 | Puntos de "INICIANDO" | pantalla 1 | Tras el texto hay 3 posiciones reservadas para puntos. Ciclo de 1.6 s: 0 puntos, 1, 2, 3 puntos, 0.4 s cada uno (2.5 cuadros por segundo). El cursor **no se mueve** (queda tras los 3 puntos reservados). Solo en `INICIANDO`, no en `CASI LISTO` ni en error |
+| A2 | Puntos de "INICIANDO" | pantalla 1 | Tras el texto hay 3 posiciones reservadas para puntos. Ciclo de 1.28 s: 0 puntos, 1, 2, 3 puntos, 0.32 s cada uno (3.125 cuadros por segundo). El cursor **no se mueve** (queda tras los 3 puntos reservados). Solo en `INICIANDO`, no en `CASI LISTO` ni en error |
 | A3 | Bloque líder | barra de pantallas 1 y 2 | El bloque siguiente al último lleno parpadea con A1. Sirve para saber que el equipo no está colgado aunque un paso tarde |
 | A4 | Destello de paso | fila del paso que pasa a OK | En el instante en que el paso queda OK, su fila se pinta invertida (fondo verde de x = 18 a 462, texto color fondo) durante 0.35 s y luego vuelve a normal con `[OK]`. En ese mismo cuadro la barra salta a su nueva cantidad de bloques |
 | A5 | Entrada de LISTO | pantalla 3, una sola vez al entrar | (1) Barrido del título de izquierda a derecha en 5 pasos de 0.15 s: se muestra 0, 20, 40, 60, 80 y 100 % del ancho útil (432 px). (2) Al mismo tiempo la barra se llena en 16 pasos iguales durante 0.9 s. (3) La IP (y su cursor) aparece de golpe a los 0.95 s. Después solo parpadea el cursor de la IP |

@@ -40,7 +40,7 @@ class AnimationPlan:
         blink = active and cfg.blink and ((now - self.started) % 1.0 < 0.5)
         screen.cursor_on = blink if active and cfg.blink else True
         screen.blink_on = screen.cursor_on
-        screen.dots = int((now - self.started) / 0.4) % 4 if active and cfg.dots else 3
+        screen.dots = int((now - self.started) / 0.32) % 4 if active and cfg.dots else 3
         screen.flash_rows = tuple(i for i, until in self.flash_until.items() if active and cfg.step_flash and now < until)
         screen.flash_row = screen.flash_rows[0] if screen.flash_rows else None
         if mode == "ready" and active and cfg.ready_intro:
@@ -63,14 +63,15 @@ class AnimationPlan:
         cap = 1.0 / cfg.max_fps if cfg.enabled else 1.0
         deadlines = [now + (1.0 - uptime_now % 1.0)]
         if next_poll is not None:
-            deadlines.append(now + max(0.0, next_poll - uptime_now))
+            # Poll deadlines use the same monotonic clock as animation events.
+            deadlines.append(max(now, next_poll))
         active = cfg.enabled
         if active and cfg.blink:
             phase = (now - self.started) % 1.0
             deadlines.append(now + (0.5 - phase if phase < 0.5 else 1.0 - phase))
         if active and cfg.dots and screen.title == "INICIANDO":
-            phase = (now - self.started) % 0.4
-            deadlines.append(now + 0.4 - phase)
+            phase = (now - self.started) % 0.32
+            deadlines.append(now + 0.32 - phase)
         if active and screen.mode == "ready" and cfg.ready_intro and self.ready_started is not None:
             age = max(0.0, now - self.ready_started)
             for interval, total in ((0.15, 5), (0.9 / 16, 16)):

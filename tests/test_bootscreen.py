@@ -200,7 +200,7 @@ class AnimationTests(unittest.TestCase):
         planner.update(screen, 10.0)
         self.assertEqual(screen.dots, 0)
         self.assertTrue(screen.cursor_on)
-        planner.update(screen, 10.4)
+        planner.update(screen, 10.33)
         self.assertEqual(screen.dots, 1)
         planner.update(screen, 10.5)
         self.assertFalse(screen.cursor_on)

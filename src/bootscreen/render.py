@@ -65,7 +65,7 @@ class Screen:
     # ---- fases de animacion (cada una se avanza desde el bucle del servicio) ----
     cursor_on: bool = True           # cursores de bloque, 1 Hz
     blink_on: bool = True            # marcador [..] y bloque lider, 1 Hz (misma fase)
-    dots: int = 3                    # puntos visibles tras INICIANDO: 0, 1, 2, 3 (cada 0.4 s)
+    dots: int = 3                    # puntos visibles tras INICIANDO: 0, 1, 2, 3 (cada 0.32 s)
     flash_row: Optional[int] = None  # indice de fila destellando (0.35 s tras pasar a OK)
     flash_rows: Tuple[int, ...] = () # filas que pasan a OK en el mismo sondeo
     reveal: int = 5                  # LISTO: barrido del titulo, 0..5 (pasos de 0.15 s)
@@ -341,11 +341,11 @@ def layout_regions(s: Screen) -> Dict[str, Rect]:
     return _cached_layout(steps, s.elapsed, s.ip)
 
 
-def render_partial(s: Screen, previous: Image.Image, only, regions=None) -> Image.Image:
+def render_partial(s: Screen, previous: Image.Image, only, regions=None, *, in_place=False) -> Image.Image:
     """Redraw named regions over a prior frame, leaving all other pixels intact."""
     reg = regions if regions is not None else layout_regions(s)
     dirty = set(only)
-    img = previous.copy()
+    img = previous if in_place else previous.copy()
     d = ImageDraw.Draw(img)
     mode = s.mode
     accent = ERR if mode == "error" else FG
